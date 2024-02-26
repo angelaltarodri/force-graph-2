@@ -1,0 +1,24 @@
+DESCRIPTION:
+
+0. You have to make sure the Node version on your machine should be atleast 18
+1. Begin by opening the project to assess available resources. In this case, there is a dummy code for the force-directed graph.
+2. Establish a components folder and module to organize the components necessary for the task. For this purpose, create a FormComponent and a ForceGraphComponent.
+3. Request fake data from ChatGPT 3.5 to populate the form. The form should include 15 fields, each offering three options.
+4. Establish a personsSubject to manage changes related to persons.
+5. Develop a reactive form with 15 fields and a submission function that adds a Person object to the personsSubject.
+6. Subscribe to personsSubject within the ForceGraph component to trigger re-rendering of the force graph whenever its value changes.
+7. Adjust the getChartData() function to generate new Nodes and Links based on the personsSubject value (an array of Persons).
+8. Research online to enhance the d3 force graph. Found useful resources:
+    -   Utilize drag functionality from https://observablehq.com/@xianwu/force-directed-graph-network-graph-with-arrowheads-and-lab. This enables node selection and movement via touch or mouse input. Adapt logic for "arrowheads" to create a visual indicator at the end of each link ("little lights").
+    -   Incorporate link highlighting feature from https://observablehq.com/@john-guerra/force-directed-graph-with-link-highlighting. Integrate "mouseenter" and "mouseleave" functionalities into drag start and end functions, respectively, for improved user experience.
+9. Ensure that person nodes are created last to prioritize their visibility in the force graph.
+
+BONUS:
+
+1. Implement a BreakpointService leveraging AngularCDK to manage layout changes, particularly within the force graph.
+2. Enhance the FormComponent by adding a FilterForm to refine form results, selecting only the fields/attributes chosen by "n" persons.
+
+NOTES:
+
+1. I could've used lazy loading, but I felt it wasnt neccesary for this task.
+2. I didn't use scss variables ($variable) because it's easier to access a certain color through enums, but I suppose I could have used them for styling purposes.

@@ -1,0 +1,13 @@
+<div class="title-form">Enter the information below. The number input will remove any element that doesn't repeat more than "filter" times.</div>
+<form [formGroup]="graphForm" (ngSubmit)="submitForm()">
+  <form [formGroup]="filterForm" class="filter-form">
+    <div class="title-filter">FILTER:</div>
+    <input type="number" formControlName="filter" id="" placeholder="filter" />
+  </form>
+  <select [formControlName]="elem.field" *ngFor="let elem of formFields; let i = index">
+    <option [value]="option.id" *ngFor="let option of elem.options; let j = index">
+      {{ option.name }}
+    </option>
+  </select>
+  <button type="submit">Enter data</button>
+</form>
