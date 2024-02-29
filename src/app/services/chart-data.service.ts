@@ -289,12 +289,6 @@ export class ChartDataService {
     return { svg, simulation };
   }
 
-  /**
-   * Calculate Parent Size
-   * @param age
-   * @returns
-   */
-
   private dragStart(e: DragEvent, d: Node, simulation) {
     simulation.alphaTarget(0.05).restart();
     d.fx = d.x;
@@ -314,7 +308,6 @@ export class ChartDataService {
 
   private createMarker(svg, d, i): string {
     const markerId = `custom-marker-${i}`;
-    // Agregar marcador a defs
     svg
       .select('defs')
       .append('marker')
