@@ -1,7 +1,6 @@
 import { AfterViewInit, Component, ElementRef, OnDestroy, ViewChild, inject } from '@angular/core';
 import { Link, Selection, Simulation, forceCenter } from 'd3';
 import { Subject, takeUntil } from 'rxjs';
-import { ColorTypes } from 'src/app/enums/color-type.enum';
 import { BreakpointService } from 'src/app/services/breakpoint.service';
 import { ChartDataService } from 'src/app/services/chart-data.service';
 
@@ -19,21 +18,28 @@ export class ForceGraphComponent implements OnDestroy, AfterViewInit {
   private chartDataService = inject(ChartDataService);
   private breakpointService = inject(BreakpointService);
 
-  public COLOR_TYPES = ColorTypes;
-
   ngAfterViewInit(): void {
-    this.chartDataService.personsSubject.subscribe((res) => {
+    this.chartDataService.persons2Subject.subscribe((res) => {
       if (res.length !== 0) {
         this.initializeGraph();
       }
     });
 
-    this.breakpointService.proportion.subscribe((res) => {
-      this.initializeGraph();
+    this.chartDataService.graphConfiguration.subscribe((res) => {
+      if (this.chartDataService.persons2Subject.value.length !== 0) {
+        this.initializeGraph();
+      }
     });
 
-    this.chartDataService.numberFilter.subscribe((res) => {
-      this.initializeGraph();
+    this.breakpointService.proportion.subscribe({
+      next: (res) => {
+        if (this.chartDataService.persons2Subject.value.length !== 0) {
+          this.initializeGraph();
+        }
+      },
+      error: (err) => {
+        // console.log(err);
+      },
     });
   }
 
@@ -51,7 +57,7 @@ export class ForceGraphComponent implements OnDestroy, AfterViewInit {
           this.createGraph(data);
         },
         error: (error) => {
-          console.error('Error fetching chart data:', error);
+          // console.error('Error fetching chart data:', error);
         },
       });
   }
@@ -78,12 +84,10 @@ export class ForceGraphComponent implements OnDestroy, AfterViewInit {
     const height: number = div.clientHeight;
     this.svg.attr('viewBox', `0 0 ${width} ${height}`);
     this.simulation.force('center', forceCenter<Node>(width / 2, height / 2));
-    const linkDistance: number = Math.min(width, height) / 10;
-    this.simulation.force('link').distance(linkDistance);
     this.simulation.restart();
   }
 
   get persons() {
-    return this.chartDataService.personsSubject.getValue();
+    return this.chartDataService.persons2Subject.getValue();
   }
 }

@@ -2,29 +2,170 @@ import { Injectable, inject } from '@angular/core';
 import { BaseType, Link, Node, Selection, Simulation, drag, forceLink, forceManyBody, forceSimulation, select } from 'd3';
 import { BehaviorSubject, Observable, of } from 'rxjs';
 import { CHART_OPTIONS } from '../data/chart-options';
-import { formFields } from '../data/form-fields';
-import { ColorTypes } from '../enums/color-type.enum';
-import { Person } from '../interfaces/person.interface';
 import { BreakpointService } from './breakpoint.service';
+import { UtilsService } from './utils.service';
+import { personNames, personQualities } from '../data/constants';
+import { NodeType, Sign } from '../enums';
+import { GraphConfiguration, Person2 } from '../interfaces';
 
 @Injectable({
   providedIn: 'root',
 })
 export class ChartDataService {
-  private persons: Person[] = [];
-  public personsSubject: BehaviorSubject<Person[]> = new BehaviorSubject<Person[]>([]);
-  public numberFilter: BehaviorSubject<number> = new BehaviorSubject<number>(0);
+  private US = inject(UtilsService);
+
+  private persons2Shown: Person2[] = [];
+  private persons2Created: Person2[] = [];
+  public persons2Subject: BehaviorSubject<Person2[]> = new BehaviorSubject<Person2[]>([]);
+
   private breakpointService = inject(BreakpointService);
   public proportion = 1;
 
-  addPerson(form: { [key: string]: any }): void {
-    const name: string = `Person${this.persons.length + 1}`;
-    const id = this.persons.length;
+  private rangeAttributes = 10;
+  private rangeWeight = 5;
+  private auraReduced = 8;
+  private distanceProportion = 1;
 
-    const person: Person = { name, id, ...form };
+  public attributesSelected: BehaviorSubject<string[]> = new BehaviorSubject<string[]>(personQualities);
 
-    this.persons.push(person);
-    this.personsSubject.next(this.persons);
+  public graphConfiguration: BehaviorSubject<GraphConfiguration> = new BehaviorSubject<GraphConfiguration>({
+    idPersonSelected: 0,
+    /**
+     * From 0 to 4
+     */
+    personsDistanceProportion: 2.5,
+    /**
+     * From 0 to 1
+     */
+    attributesDistanceProportion: 0.7,
+    /**
+     * From 0 to 1
+     */
+    opacityAura: 1,
+    /**
+     * From 10 to 100,
+     */
+    percentDefinedAttributes: 70,
+    /**
+     * From 5 to 100,
+     */
+    strengthGraph: 10,
+    /**
+     * From 5 to 250,
+     */
+    maxAuraRadio: 200,
+    /**
+     * From 4 to 10,
+     */
+    valueAttributeNode: 4,
+    fullColorAttributeNodes: true,
+    showNames: true,
+  });
+
+  get idPersonSelected() {
+    return this.graphConfiguration.value.idPersonSelected;
+  }
+  get personsDistanceProportion() {
+    return this.graphConfiguration.value.personsDistanceProportion;
+  }
+  get attributesDistanceProportion() {
+    return this.graphConfiguration.value.attributesDistanceProportion;
+  }
+  get opacityAura() {
+    return this.graphConfiguration.value.opacityAura;
+  }
+  get percentDefinedAttributes() {
+    return this.graphConfiguration.value.percentDefinedAttributes;
+  }
+  get strengthGraph() {
+    return this.graphConfiguration.value.strengthGraph;
+  }
+  get maxAuraRadio() {
+    return this.graphConfiguration.value.maxAuraRadio;
+  }
+  get valueAttributeNode() {
+    return this.graphConfiguration.value.valueAttributeNode;
+  }
+  get fullColorAttributeNodes() {
+    return this.graphConfiguration.value.fullColorAttributeNodes;
+  }
+  get showNames() {
+    return this.graphConfiguration.value.showNames;
+  }
+
+  addPerson(nodeGroupAmount: number = 2, percentDefinedAttributes: number = 100, attributesList: string[]) {
+    const newNumberPersons = Math.floor(nodeGroupAmount);
+    const currentNumberPersons = this.persons2Created.length;
+
+    if (newNumberPersons < 2) return;
+
+    const differenceNumber = newNumberPersons - currentNumberPersons;
+    const sameAttributes = this.US.arraysHaveSameElements(attributesList, this.attributesSelected.value);
+    if (!sameAttributes) {
+      // console.log('new');
+      const newPersons = this.loopCreatePersons(newNumberPersons, percentDefinedAttributes, attributesList, true);
+      this.attributesSelected.next(attributesList);
+      this.persons2Created = newPersons;
+      this.persons2Shown = this.persons2Created;
+    } else if (percentDefinedAttributes !== this.percentDefinedAttributes) {
+      // console.log('new');
+      const newPersons = this.loopCreatePersons(newNumberPersons, percentDefinedAttributes, attributesList, true);
+      this.persons2Created = newPersons;
+      this.persons2Shown = this.persons2Created;
+    } else if (differenceNumber === 0) {
+      // console.log('slice');
+      this.persons2Shown = this.persons2Created.slice(0, newNumberPersons);
+    } else if (differenceNumber > 0) {
+      // console.log('add');
+      const newPersons = this.loopCreatePersons(differenceNumber, this.percentDefinedAttributes, attributesList, false);
+      this.persons2Created = [...this.persons2Created, ...newPersons];
+      this.persons2Shown = this.persons2Created;
+    } else {
+      // console.log('else');
+      this.persons2Shown = this.persons2Created.slice(0, newNumberPersons);
+    }
+
+    this.persons2Subject.next(this.persons2Shown);
+  }
+
+  loopCreatePersons(number: number, percentDefinedAttributes: number, attributesList: string[], isNew: boolean) {
+    const persons2Created: Person2[] = [];
+
+    let counterId = isNew ? 0 : this.persons2Created.length;
+
+    for (let i = 0; i < number; i++) {
+      const name: string = personNames[this.US.randomNumber(personNames.length, false)] + ` (${this.US.randomNumber(10) + 18})`;
+      const id = counterId;
+
+      const attributes = {};
+      const preferences = {};
+
+      for (let j = 0; j < attributesList.length; j++) {
+        const attributeName = attributesList[j];
+        if (this.US.randomBoolean(percentDefinedAttributes)) {
+          attributes[attributeName] = this.US.randomNumber(this.rangeAttributes);
+        }
+        preferences[attributeName] = {
+          value: this.US.randomNumber(this.rangeAttributes),
+          sign: this.US.randomSign(),
+          weight: this.US.randomNumber(this.rangeWeight),
+        };
+      }
+
+      const personalAuraRadio = (this.maxAuraRadio * Object.keys(attributes).length) / attributesList.length;
+
+      persons2Created.push({
+        id,
+        name,
+        attributes,
+        preferences,
+        personalAuraRadio,
+      });
+
+      counterId += 1;
+    }
+
+    return persons2Created;
   }
 
   constructor() {
@@ -39,107 +180,245 @@ export class ChartDataService {
     const nodes: Node[] = [];
     const links: Link[] = [];
 
-    /**
-     * the purpose of formFieldsCounter is to acumulate the repeated nodes, so that later
-     * we can identify which ones are the most repeated and assign them high values
-     * in order to make bigger circles/ highlight them.
-     *
-     * Also, we only see on the graph the field values that were chosen by the user
-     * (or the algorithm).
-     */
+    const person = this.persons2Shown.find((p) => p.id === this.idPersonSelected);
+    const personsNotSelected = this.persons2Shown.filter((p) => p.id !== this.idPersonSelected);
 
-    const formFieldsCounter = {};
+    const relationsData = {};
+    const selectedData = {
+      id: person.id,
+      name: person.name,
+      attributes: {},
+    };
+    for (let a = 0; a < personsNotSelected.length; a++) {
+      relationsData[personsNotSelected[a].id] = {};
+    }
 
-    for (let i = 0; i < this.persons.length; i++) {
-      for (let j = 0; j < formFields.length; j++) {
-        for (let k = 0; k < formFields[j].options.length; k++) {
-          if (this.persons[i][formFields[j].field] === formFields[j].options[k].id) {
-            if (formFields[j].options[k].id in formFieldsCounter) {
-              formFieldsCounter[formFields[j].options[k].id].counter += 1;
-            } else {
-              formFieldsCounter[formFields[j].options[k].id] = {
-                id: formFields[j].options[k].id,
-                parent: formFields[j].id,
-                name: formFields[j].options[k].name,
-                counter: 1,
-              };
-            }
+    for (let i = 0; i < personsNotSelected.length; i++) {
+      for (const attribute of personQualities) {
+        if (personsNotSelected[i].attributes[attribute]) {
+          const sign: Sign = person.preferences[attribute].sign;
+
+          let attraction: number = 0;
+
+          const preferenceValue: number = person.preferences[attribute].value;
+          const attributevalue: number = personsNotSelected[i].attributes[attribute];
+
+          const isGreater: boolean = preferenceValue < attributevalue;
+          const isLesser: boolean = preferenceValue > attributevalue;
+          const isExact: boolean = preferenceValue === attributevalue;
+
+          if (sign === Sign.GREATER && isGreater) {
+            attraction = person.preferences[attribute].weight;
+            relationsData[personsNotSelected[i].id][attribute] = attraction;
+          } else if (sign === Sign.LESSER && isLesser) {
+            attraction = person.preferences[attribute].weight;
+            relationsData[personsNotSelected[i].id][attribute] = attraction;
+          } else if (sign === Sign.EXACT && isExact) {
+            attraction = person.preferences[attribute].weight;
+            relationsData[personsNotSelected[i].id][attribute] = attraction;
+          } else {
+            relationsData[personsNotSelected[i].id][attribute] = 0;
+          }
+
+          if (sign === Sign.CLOSER) {
+            const separationUnt: number = person.preferences[attribute].weight / (this.rangeAttributes - 1);
+
+            const distanceInt: number = preferenceValue - attributevalue;
+
+            const distanceDouble: number = Math.abs(distanceInt) * separationUnt;
+
+            attraction = Math.floor((person.preferences[attribute].weight - distanceDouble) * 100) / 100;
+
+            relationsData[personsNotSelected[i].id][attribute] = attraction;
+          }
+
+          if (selectedData.attributes[attribute]) {
+            selectedData.attributes[attribute] += attraction;
+          } else {
+            selectedData.attributes[attribute] = attraction;
+          }
+        } else {
+          relationsData[personsNotSelected[i].id][attribute] = 0;
+          if (!selectedData.attributes[attribute]) {
+            selectedData.attributes[attribute] = 0;
           }
         }
       }
     }
 
-    const formFieldParents = [];
+    const linksRelationsAttributes: Link[] = [];
+    const linksPersons: Link[] = [];
+    const nodesPersons: Node[] = [];
+    const nodesAttributes: Node[] = [];
+    let maxDistanceRelations: number = 0;
 
-    for (const item in formFieldsCounter) {
-      if (Object.prototype.hasOwnProperty.call(formFieldsCounter, item)) {
-        const counter = formFieldsCounter[item].counter;
+    for (const idPerson in relationsData) {
+      if (Object.prototype.hasOwnProperty.call(relationsData, idPerson)) {
+        // for distance between persons purpose
+        let sumAttractions: number = 0;
 
-        if (counter >= this.numberFilter.getValue()) {
-          nodes.push({
-            id: formFieldsCounter[item].id,
-            name: formFieldsCounter[item].name,
-            color: ColorTypes.PURPLE,
-            value: counter * 5 + 5,
-            counter: counter,
-          });
+        let maxDistanceAttributePerson: number = 0;
+        let minDistanceAttributePerson: number = 1000;
+        // for each person
+        for (const attribute in relationsData[idPerson]) {
+          if (Object.prototype.hasOwnProperty.call(relationsData[idPerson], attribute)) {
+            const distance = relationsData[idPerson][attribute] * 10 + this.maxAuraRadio / this.auraReduced;
 
-          formFieldParents.push(formFieldsCounter[item].parent);
-        }
-      }
-    }
+            linksRelationsAttributes.push({
+              source: idPerson,
+              target: `${idPerson}_${attribute}`,
+              light: false,
+              distance: distance,
+            });
 
-    for (let i = 0; i < this.persons.length; i++) {
-      for (let j = 0; j < formFields.length; j++) {
-        for (let k = 0; k < formFields[j].options.length; k++) {
-          if (this.persons[i][formFields[j].field] === formFields[j].options[k].id) {
-            const counter = formFieldsCounter[formFields[j].options[k].id].counter;
+            if (distance > maxDistanceRelations) maxDistanceRelations = distance;
 
-            if (counter >= this.numberFilter.getValue()) {
-              links.push({
-                source: this.persons[i].id,
-                target: formFields[j].options[k].id,
-                light: true,
-              });
+            if (relationsData[idPerson][attribute] > maxDistanceAttributePerson) maxDistanceAttributePerson = relationsData[idPerson][attribute];
+            if (relationsData[idPerson][attribute] < minDistanceAttributePerson) minDistanceAttributePerson = relationsData[idPerson][attribute];
 
-              const value = counter * 5 + 5;
-              links.push({
-                source: this.persons[i].id,
-                target: formFields[j].options[k].id,
-                light: true,
-                name: formFieldsCounter[formFields[j].options[k].id].name,
-                value,
-              });
-
-              links.push({
-                source: formFields[j].options[k].id,
-                target: formFields[j].id,
-                light: false,
-              });
-            }
+            sumAttractions += relationsData[idPerson][attribute];
           }
         }
 
-        const isPresent = formFieldParents.find((p) => p === formFields[j].id);
-
-        if (i === 0 && isPresent) {
-          nodes.push({
-            id: formFields[j].id,
-            name: formFields[j].name,
-            color: ColorTypes.INDIANRED,
-            value: 20 * this.proportion,
-          });
+        // get color for Attribute Node
+        for (const attribute in relationsData[idPerson]) {
+          if (Object.prototype.hasOwnProperty.call(relationsData[idPerson], attribute)) {
+            // for each attribute per person there'll be a node
+            nodesAttributes.push({
+              id: `${idPerson}_${attribute}`,
+              name: attribute,
+              value: this.valueAttributeNode * this.proportion,
+              color: this.US.getColorAttributeNode(relationsData[idPerson][attribute], maxDistanceAttributePerson, minDistanceAttributePerson, 1),
+              colorAura: this.US.getColorAttributeNode(relationsData[idPerson][attribute], maxDistanceAttributePerson, minDistanceAttributePerson, 1),
+              fullColor: this.fullColorAttributeNodes,
+              personId: idPerson,
+            });
+          }
         }
+
+        // links from other persons to selected person
+        linksPersons.push({
+          source: idPerson,
+          target: selectedData.id,
+          light: false,
+          distance: sumAttractions / 5,
+        });
+
+        nodesPersons.push({
+          id: idPerson,
+          name: personsNotSelected.find((p) => p.id === +idPerson).name,
+          color: '#FFC500',
+          value: personsNotSelected.find((p) => p.id === +idPerson).personalAuraRadio * this.proportion,
+        });
       }
-      const newPersonNode = {
-        id: this.persons[i].id,
-        name: this.persons[i].name,
-        color: ColorTypes.ORANGE,
-        value: 20 * this.proportion,
-      };
-      nodes.push(newPersonNode);
     }
 
+    let maxDistancePersons: number = 0;
+    let minDistancePersons: number = 1000;
+    for (let i = 0; i < linksPersons.length; i++) {
+      const distance = linksPersons[i].distance;
+      if (distance > maxDistancePersons) maxDistancePersons = distance;
+      if (distance < minDistancePersons) minDistancePersons = distance;
+    }
+
+    for (let i = 0; i < linksPersons.length; i++) {
+      const newDistance = this.US.getDistancePersonNode(linksPersons[i].distance, maxDistancePersons, minDistancePersons, this.personsDistanceProportion);
+
+      links.push({
+        ...linksPersons[i],
+        distance: newDistance * this.proportion,
+      });
+    }
+
+    for (let i = 0; i < nodesPersons.length; i++) {
+      const realDistance = linksPersons[i].distance;
+      const realMaxDistance = maxDistancePersons;
+      const realMinDistance = minDistancePersons;
+
+      nodes.push({
+        ...nodesPersons[i],
+        colorAura: this.US.getColorPersonNode(realDistance, realMaxDistance, realMinDistance, this.opacityAura),
+        fullColor: false,
+        color: this.US.getColorPersonNode(realDistance, realMaxDistance, realMinDistance, this.opacityAura),
+        personId: undefined,
+        type: NodeType.PERSON,
+      });
+    }
+
+    for (let i = 0; i < linksRelationsAttributes.length; i++) {
+      links.push({
+        ...linksRelationsAttributes[i],
+        distance: ((linksRelationsAttributes[i].distance * this.maxAuraRadio * this.attributesDistanceProportion) / maxDistanceRelations) * this.proportion,
+      });
+    }
+
+    // Selected person
+    nodes.push({
+      id: selectedData.id,
+      name: selectedData.name,
+      color: `rgb(255, 0, 166, ${this.opacityAura})`,
+      fullColor: false,
+      colorAura: `rgb(255, 0, 166, ${this.opacityAura})`,
+      value: this.maxAuraRadio * this.proportion,
+      personId: undefined,
+      type: NodeType.PERSON,
+    });
+
+    const linksSelectedAttributes: Link[] = [];
+    let maxDistanceSelected: number = 0;
+    let minDistanceSelected: number = 1000;
+
+    for (const key in selectedData.attributes) {
+      if (Object.prototype.hasOwnProperty.call(selectedData.attributes, key)) {
+        const distance = selectedData.attributes[key] * 10 + this.maxAuraRadio / this.auraReduced;
+
+        linksSelectedAttributes.push({
+          source: key,
+          target: selectedData.id,
+          light: false,
+          distance: distance,
+        });
+
+        if (distance > maxDistanceSelected) maxDistanceSelected = distance;
+        if (distance < minDistanceSelected) minDistanceSelected = distance;
+      }
+    }
+
+    for (let i = 0; i < linksSelectedAttributes.length; i++) {
+      links.push({
+        ...linksSelectedAttributes[i],
+        distance: ((linksSelectedAttributes[i].distance * this.maxAuraRadio * this.attributesDistanceProportion) / maxDistanceSelected) * this.proportion,
+      });
+    }
+
+    for (const key in selectedData.attributes) {
+      if (Object.prototype.hasOwnProperty.call(selectedData.attributes, key)) {
+        const distance = selectedData.attributes[key] * 10 + this.maxAuraRadio / this.auraReduced;
+
+        nodes.push({
+          id: key,
+          name: key,
+          value: this.valueAttributeNode * this.proportion,
+          color: this.US.getColorAttributeNode(distance, maxDistanceSelected, minDistanceSelected, 1, true),
+          colorAura: this.US.getColorAttributeNode(distance, maxDistanceSelected, minDistanceSelected, 1, true),
+          fullColor: this.fullColorAttributeNodes,
+          personId: selectedData.id,
+          type: NodeType.ATTRIBUTE,
+        });
+      }
+    }
+
+    // nodes others attributes
+    for (let i = 0; i < nodesAttributes.length; i++) {
+      nodes.push({
+        ...nodesAttributes[i],
+        type: NodeType.ATTRIBUTE,
+      });
+    }
+
+    // console.table(relationsData);
+    // console.table(selectedData.attributes);
+    // console.table(person.preferences);
     return of({ nodes, links });
   }
 
@@ -150,7 +429,7 @@ export class ChartDataService {
     div: HTMLDivElement,
     width: number,
     height: number,
-    data: any,
+    data: { nodes: Node[]; links: Link[] },
   ): { svg: Selection<SVGSVGElement, unknown, null, undefined>; simulation: Simulation<Node, Link> } {
     select('svg').remove();
 
@@ -164,19 +443,6 @@ export class ChartDataService {
       .data(data.links)
       .join('line')
       .attr('class', 'links');
-
-    const bright = svg
-      .append('defs')
-      .append('radialGradient')
-      .attr('fill', CHART_OPTIONS.linkColor)
-      .attr('id', `glare-gradient`)
-      .attr('cx', '50%')
-      .attr('cy', '50%')
-      .attr('r', '50%');
-
-    bright.append('stop').attr('offset', '0%').style('stop-color', 'white').style('stop-opacity', 1);
-
-    bright.append('stop').attr('offset', '50%').style('stop-color', CHART_OPTIONS.gradientShade);
 
     const node: Selection<SVGGElement, Node, BaseType, unknown> = svg
       .append('g')
@@ -194,6 +460,14 @@ export class ChartDataService {
               .filter((l) => l.source.id === d.id || l.target.id === d.id)
               .attr('display', 'block')
               .attr('stroke', 'white');
+
+            text
+              .filter((n) => {
+                return n.type === NodeType.ATTRIBUTE && n.personId === d.id;
+              })
+              .style('fill', 'white');
+
+            text.filter((n) => n.type === NodeType.ATTRIBUTE && n.id === d.id).style('fill', 'white');
           })
           .on('drag', (e, d, s) => {
             this.drag(e, d, simulation);
@@ -202,10 +476,20 @@ export class ChartDataService {
               .filter((l) => l.source.id === d.id || l.target.id === d.id)
               .attr('display', 'block')
               .attr('stroke', 'white');
+
+            text
+              .filter((n) => {
+                return n.type === NodeType.ATTRIBUTE && n.personId === d.id;
+              })
+              .style('fill', 'white');
+
+            text.filter((n) => n.type === NodeType.ATTRIBUTE && n.id === d.id).style('fill', 'white');
           })
           .on('end', (e, d, s) => {
             this.dragEnd(e, d, simulation);
             link.attr('display', 'block').attr('stroke', CHART_OPTIONS.linkColor);
+            text.filter((n) => n.type === NodeType.ATTRIBUTE && n.personId === d.id).style('fill', 'transparent');
+            text.filter((n) => n.type === NodeType.ATTRIBUTE && n.id === d.id).style('fill', 'transparent');
           }),
       );
 
@@ -214,11 +498,11 @@ export class ChartDataService {
     circles
       .append('circle')
       .attr('r', (d) => d.value)
-      .style('fill', (d) => d.color);
+      .style('fill', (d) => (d.fullColor ? d.color : 'transparent'));
 
     const gradient: Selection<SVGStopElement, unknown, BaseType, unknown> = circles
       .append('radialGradient')
-      .attr('id', (d, i) => `glare-gradient-${i}`)
+      .attr('id', (d, i) => (d.fullColor ? `glare-gradient-${i}` : ''))
       .attr('cx', '70%')
       .attr('cy', '70%')
       .attr('r', '80%');
@@ -226,6 +510,21 @@ export class ChartDataService {
     gradient.append('stop').attr('offset', '0%').style('stop-color', CHART_OPTIONS.gradientColor).style('stop-opacity', 1);
 
     gradient.append('stop').attr('offset', '100%').style('stop-color', CHART_OPTIONS.gradientShade);
+
+    const gradientOut: Selection<SVGStopElement, unknown, BaseType, unknown> = circles
+      .append('radialGradient')
+      .attr('id', (d, i) => (d.fullColor ? '' : `gradient-out-${i}`))
+      .attr('cx', '50%')
+      .attr('cy', '50%')
+      .attr('r', '50%');
+
+    gradientOut
+      .append('stop')
+      .attr('offset', '0%')
+      .style('stop-color', (n) => n.colorAura)
+      .style('stop-opacity', 1);
+
+    gradientOut.append('stop').attr('offset', '100%').style('stop-color', 'transparent');
 
     circles
       .append('circle')
@@ -235,35 +534,32 @@ export class ChartDataService {
       .style('fill', (d, i) => `url(#glare-gradient-${i})`);
 
     circles
+      .append('circle')
+      .attr('r', (d) => d.value)
+      .attr('x', 0)
+      .attr('y', 0)
+      .style('fill', (d, i) => `url(#gradient-out-${i})`);
+
+    const text = circles
       .append('text')
-      .style('fill', (d) => 'white')
-      .text((n) => `${n.name}${n.counter ? '(' + n.counter + ')' : ''}`)
+      .style('fill', (n) => `${n.type === NodeType.PERSON ? 'white' : 'transparent'}`)
+      .text((n) => `${this.showNames ? n.name : ''} ${n.counter ? '(' + n.counter + ')' : ''}`)
       .attr('x', 12)
       .attr('y', 3)
       .style('font-size', '12px');
-
-    const light = svg
-      .append('g')
-      .attr('stroke', 'transparent')
-      .attr('stroke-opacity', 1)
-      .selectAll('line')
-      .data(data.links)
-      .join('line')
-      .attr('class', 'links')
-      .attr('marker-end', (d, i) => {
-        const urlId = this.createMarker(svg, d, i);
-
-        return d.light && d.value ? urlId : '';
-      });
 
     svg.select('#light-gradient').attr('refX', 5);
 
     const simulation = forceSimulation(data.nodes)
       .force(
         'link',
-        forceLink<Node, Link>(data.links).id((d) => d.id),
+        forceLink<Node, Link>(data.links)
+          .id((d) => d.id)
+          .distance((d) => {
+            return d.distance * this.distanceProportion;
+          }),
       )
-      .force('charge', forceManyBody<Node>().strength(-300))
+      .force('charge', forceManyBody<Node>().strength(-this.strengthGraph))
       .on('tick', () => {
         node.attr('transform', (n) => {
           n.x = Math.max(0, Math.min(width, n.x));
@@ -271,16 +567,7 @@ export class ChartDataService {
           return 'translate(' + n.x + ',' + n.y + ')';
         });
         link
-          .attr('x1', (l) => {
-            return l.source.x;
-          })
-          .attr('y1', (l) => l.source.y)
-          .attr('x2', (l) => l.target.x)
-          .attr('y2', (l) => l.target.y);
-        light
-          .attr('x1', (l) => {
-            return l.source.x;
-          })
+          .attr('x1', (l) => l.source.x)
           .attr('y1', (l) => l.source.y)
           .attr('x2', (l) => l.target.x)
           .attr('y2', (l) => l.target.y);
@@ -306,26 +593,7 @@ export class ChartDataService {
     d.fy = null;
   }
 
-  private createMarker(svg, d, i): string {
-    const markerId = `custom-marker-${i}`;
-    svg
-      .select('defs')
-      .append('marker')
-      .attr('id', markerId)
-      .attr('viewBox', '-5 -5 10 10')
-      .attr('refX', d.value ? d.value / 2 : 0)
-      .attr('refY', 0)
-      .attr('orient', 'auto')
-      .attr('markerWidth', 20)
-      .attr('markerHeight', 20)
-      .attr('xoverflow', 'visible')
-      .append('svg:circle')
-      .attr('cx', 0)
-      .attr('cy', 0)
-      .attr('r', 5)
-      .attr('fill', 'url(#glare-gradient)')
-      .style('stroke', 'none');
-
-    return `url(#${markerId})`;
+  getNodeRadiusValue(counter: number) {
+    return counter * 5 + 5;
   }
 }
