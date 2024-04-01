@@ -2,11 +2,11 @@ import { Injectable, inject } from '@angular/core';
 import { BaseType, Link, Node, Selection, Simulation, drag, forceLink, forceManyBody, forceSimulation, select } from 'd3';
 import { BehaviorSubject, Observable, of } from 'rxjs';
 import { CHART_OPTIONS } from '../data/chart-options';
-import { BreakpointService } from './breakpoint.service';
-import { UtilsService } from './utils.service';
 import { personNames, personQualities } from '../data/constants';
 import { NodeType, Sign } from '../enums';
 import { GraphConfiguration, Person2 } from '../interfaces';
+import { BreakpointService } from './breakpoint.service';
+import { UtilsService } from './utils.service';
 
 @Injectable({
   providedIn: 'root',
@@ -528,14 +528,14 @@ export class ChartDataService {
 
     circles
       .append('circle')
-      .attr('r', (d) => d.value)
+      .attr('r', (d) => (d.fullColor ? d.value : 0))
       .attr('x', 0)
       .attr('y', 0)
       .style('fill', (d, i) => `url(#glare-gradient-${i})`);
 
     circles
       .append('circle')
-      .attr('r', (d) => d.value)
+      .attr('r', (d) => (!d.fullColor ? d.value : 0))
       .attr('x', 0)
       .attr('y', 0)
       .style('fill', (d, i) => `url(#gradient-out-${i})`);
